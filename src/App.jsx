@@ -128,6 +128,11 @@ const App = () => {
     return { lordo, totale: Math.ceil(lordo - scontoVal) };
   }, [currentOrder, sheetData]);
 
+  const dashboardStats = useMemo(() => {
+    const totalRevenue = savedOrders.reduce((acc, o) => acc + (o.results?.totale || 0), 0);
+    return { totalRevenue, count: savedOrders.length };
+  }, [savedOrders]);
+
   // --- ACTIONS ---
   const handleSaveOrder = async () => {
     if (!user || currentOrder.items.length === 0) return;
@@ -147,6 +152,17 @@ const App = () => {
     await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orders', oid), { status: ns });
   };
 
+  const selectCustomer = (c) => {
+    setCurrentOrder({ ...currentOrder, cliente: c.nome, telefono: c.telefono, email: c.email });
+    setActiveTab('calculator');
+  };
+
+  const deleteOrder = async (oid) => {
+    if(confirm("Vuoi eliminare definitivamente questo ordine?")) {
+      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orders', oid));
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#f1f5f9] text-slate-900 font-sans">
       {/* Nav */}
@@ -156,7 +172,7 @@ const App = () => {
             <Layers size={24} />
           </div>
           <div>
-            <h1 className="text-2xl font-black uppercase tracking-tighter leading-none italic">Fuori Registro</h1>
+            <h1 className="text-2xl font-black uppercase tracking-tighter leading-none italic text-slate-900">Fuori Registro</h1>
             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.3em] mt-1">Management Studio</p>
           </div>
         </div>
@@ -175,9 +191,10 @@ const App = () => {
       </nav>
 
       <main className="p-8 max-w-[1900px] mx-auto">
+        
+        {/* TAB: CALCOLATORE / PREVENTIVI */}
         {activeTab === 'calculator' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 animate-in fade-in">
-            {/* Input Side */}
             <div className="lg:col-span-4 space-y-6 no-print">
               <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-200 space-y-5">
                 <div className="flex justify-between items-center">
@@ -202,6 +219,10 @@ const App = () => {
                 <div className="grid grid-cols-2 gap-3">
                   <input type="number" placeholder="Quantità" value={tempItem.quantita} onChange={e => setTempItem({...tempItem, quantita: parseInt(e.target.value) || 0})} className="w-full bg-slate-50 p-4 rounded-2xl font-bold" />
                   <input type="number" placeholder="Colori" value={tempItem.colori} onChange={e => setTempItem({...tempItem, colori: parseInt(e.target.value) || 1})} className="w-full bg-slate-50 p-4 rounded-2xl font-bold" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                   <select value={tempItem.taglia} onChange={e => setTempItem({...tempItem, taglia: e.target.value})} className="w-full bg-slate-50 p-4 rounded-2xl text-xs font-black uppercase">{availableSizes.map(s => <option key={s} value={s}>{s}</option>)}</select>
+                   <select value={tempItem.coloreCapo} onChange={e => setTempItem({...tempItem, coloreCapo: e.target.value})} className="w-full bg-slate-50 p-4 rounded-2xl text-xs font-black uppercase">{availableColors.map(c => <option key={c} value={c}>{c}</option>)}</select>
                 </div>
                 <button onClick={() => {
                   if(!tempItem.prodottoNome) return;
@@ -230,8 +251,6 @@ const App = () => {
             {/* FOGLIO D'ORDINE / ANTEPRIMA PDF */}
             <div className="lg:col-span-8">
               <div className="bg-white shadow-2xl p-16 min-h-[1200px] flex flex-col rounded-sm border border-slate-100 print-area overflow-hidden">
-                
-                {/* 1. Header: Dati Fuori Registro */}
                 <div className="flex justify-between items-start mb-16 border-b-4 border-slate-900 pb-12">
                    <div className="flex items-center gap-8">
                       <div className="bg-black w-24 h-24 rounded-[1.5rem] flex items-center justify-center text-white shadow-xl rotate-2"><Layers size={48} /></div>
@@ -250,9 +269,7 @@ const App = () => {
                    </div>
                 </div>
 
-                {/* 2. Sezione Cliente & Numero Ordine */}
                 <div className="grid grid-cols-12 gap-10 mb-16 items-start">
-                   {/* Sinistra: Spett.le Cliente (Titolo 14pt, Testo 10pt) */}
                    <div className="col-span-7 border-l-[10px] border-slate-900 pl-8 py-2">
                       <span style={{ fontSize: '14pt' }} className="font-black uppercase text-slate-300 tracking-[0.4em] block mb-4">Spett.le Cliente</span>
                       <h3 style={{ fontSize: '10pt' }} className="font-black uppercase text-slate-900 leading-tight break-words tracking-tight">
@@ -264,7 +281,6 @@ const App = () => {
                       </div>
                    </div>
 
-                   {/* Destra: No. Ordine e Importo Totale */}
                    <div className="col-span-5 text-right flex flex-col justify-between h-full py-2">
                       <div>
                         <span style={{ fontSize: '14pt' }} className="font-black uppercase text-slate-300 tracking-[0.4em] block mb-2">Preventivo No.</span>
@@ -283,10 +299,8 @@ const App = () => {
                    </div>
                 </div>
 
-                {/* Divisorio Industrial Pesante */}
                 <div className="w-full h-1.5 bg-slate-900 mb-12"></div>
 
-                {/* 3. Tabella Articoli (Header 14pt, Righe 10pt) */}
                 <table className="w-full text-left mb-auto">
                    <thead>
                       <tr style={{ fontSize: '14pt' }} className="font-black uppercase text-slate-400 border-b-2 border-slate-100 pb-6 tracking-[0.3em]">
@@ -319,7 +333,6 @@ const App = () => {
                    </tbody>
                 </table>
 
-                {/* Footer Documento */}
                 <div style={{ fontSize: '10pt' }} className="mt-24 pt-10 border-t-2 border-slate-100 flex justify-between items-center font-black text-slate-300 uppercase tracking-[0.6em]">
                    <span className="flex items-center gap-3"><MapPin size={12}/> Via Prenestina 704 Roma</span>
                    <span className="italic opacity-50 font-black">Handcrafted with Passion</span>
@@ -329,7 +342,7 @@ const App = () => {
           </div>
         )}
 
-        {/* Tab Ordini / Archivio */}
+        {/* TAB: PRODUZIONE / ORDINI SALVATI */}
         {activeTab === 'orders' && (
            <div className="animate-in fade-in max-w-6xl mx-auto space-y-10">
               <div className="flex justify-between items-center border-b-2 border-slate-200 pb-10">
@@ -339,6 +352,12 @@ const App = () => {
                     <p className="text-4xl font-black text-indigo-600 tracking-tighter italic">€ {dashboardStats.totalRevenue},00</p>
                  </div>
               </div>
+              
+              <div className="relative w-full max-w-md shadow-sm rounded-2xl mb-8">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+                <input type="text" placeholder="Cerca ordine o cliente..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-white border border-slate-200 p-4 pl-12 rounded-2xl text-sm font-bold outline-none focus:border-indigo-500 shadow-sm" />
+              </div>
+
               <div className="grid gap-8">
                 {savedOrders.filter(o => o.cliente.toLowerCase().includes(searchTerm.toLowerCase())).map(o => {
                    const s = STATUS_FLOW.find(x => x.id === (o.status || 'preventivo')) || STATUS_FLOW[0];
@@ -364,12 +383,79 @@ const App = () => {
                                  <button key={sf.id} onClick={() => updateStatus(o.firestoreId, sf.id)} className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${o.status === sf.id ? `${sf.bg} ${sf.color} border-2 border-current scale-110 shadow-lg` : 'text-slate-200 hover:text-slate-400'}`}><MiniIcon size={16} /></button>
                                );
                              })}
-                             <button onClick={() => deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orders', o.firestoreId))} className="p-4 bg-red-50 text-red-500 rounded-xl hover:bg-red-600 hover:text-white transition-all shadow-sm"><Trash2 size={20}/></button>
+                             <button onClick={() => deleteOrder(o.firestoreId)} className="p-4 bg-red-50 text-red-500 rounded-xl hover:bg-red-600 hover:text-white transition-all shadow-sm"><Trash2 size={20}/></button>
                           </div>
                        </div>
                     </div>
                    );
                 })}
+              </div>
+           </div>
+        )}
+
+        {/* TAB: RUBRICA CLIENTI */}
+        {activeTab === 'customers' && (
+          <div className="animate-in fade-in max-w-6xl mx-auto py-8">
+            <h2 className="text-5xl font-black uppercase tracking-tighter text-slate-900 mb-16 flex items-center gap-6 leading-none"><div className="bg-black p-5 rounded-3xl text-white shadow-2xl"><Users size={40} /></div> Anagrafica Clienti</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+               {customers.map(c => (
+                 <div key={c.id} className="bg-white p-12 rounded-[3.5rem] border border-slate-200 shadow-sm hover:shadow-2xl transition-all group relative overflow-hidden">
+                    <div className="w-20 h-20 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-400 mb-8 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-500 font-black text-4xl uppercase shadow-inner">{c.nome ? c.nome[0] : '?'}</div>
+                    <h4 className="text-3xl font-black uppercase text-slate-900 tracking-tighter mb-6 leading-tight">{c.nome}</h4>
+                    <div className="space-y-3 text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] border-l-4 border-slate-50 pl-6">
+                       <p className="flex items-center gap-3"><Phone size={14} className="text-indigo-500" /> {c.telefono || '---'}</p>
+                       <p className="flex items-center gap-3"><Mail size={14} className="text-indigo-500" /> {c.email || '---'}</p>
+                    </div>
+                    <button onClick={() => selectCustomer(c)} className="mt-12 w-full bg-slate-900 text-white p-5 rounded-[2rem] text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-xl">Inizia Preventivo</button>
+                 </div>
+               ))}
+            </div>
+          </div>
+        )}
+
+        {/* TAB: LISTINI E SETTINGS */}
+        {activeTab === 'settings' && (
+           <div className="max-w-4xl mx-auto py-10 animate-in fade-in">
+              <div className="bg-white p-16 rounded-[4.5rem] shadow-2xl border border-slate-200 space-y-16">
+                 <h2 className="text-6xl font-black uppercase tracking-tighter flex items-center gap-8 leading-none italic"><div className="bg-slate-900 p-6 rounded-[2rem] text-white shadow-2xl rotate-2"><Settings size={44} /></div> Workshop Control</h2>
+                 <div className="grid md:grid-cols-2 gap-20 border-t-2 border-slate-100 pt-16">
+                    <div className="space-y-10">
+                       <h4 className="text-[13px] font-black uppercase text-indigo-500 tracking-[0.4em] flex items-center gap-4">Varianti Prodotto</h4>
+                       <div className="space-y-8">
+                          <div>
+                            <p className="text-[10px] font-black uppercase text-slate-400 mb-4 tracking-widest">Taglie nel sistema</p>
+                            <div className="flex flex-wrap gap-2.5">
+                                {availableSizes.map(s => <span key={s} className="bg-slate-50 px-6 py-3 rounded-2xl text-xs font-black uppercase border border-slate-100 shadow-sm">{s}</span>)}
+                                <button onClick={() => { const s = prompt("Nuova Taglia:"); if(s) setAvailableSizes([...availableSizes, s])}} className="bg-indigo-600 text-white px-6 py-3 rounded-2xl text-xs font-black shadow-lg hover:scale-105 transition-transform">+</button>
+                            </div>
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-black uppercase text-slate-400 mb-4 tracking-widest">Colori Supporto</p>
+                            <div className="flex flex-wrap gap-2.5">
+                                {availableColors.map(c => <span key={c} className="bg-slate-50 px-6 py-3 rounded-2xl text-xs font-black uppercase border border-slate-100 shadow-sm">{c}</span>)}
+                                <button onClick={() => { const c = prompt("Nuovo Colore:"); if(c) setAvailableColors([...availableColors, c])}} className="bg-indigo-600 text-white px-6 py-3 rounded-2xl text-xs font-black shadow-lg hover:scale-105 transition-transform">+</button>
+                            </div>
+                          </div>
+                       </div>
+                    </div>
+                    <div className="space-y-10">
+                       <h4 className="text-[13px] font-black uppercase text-indigo-500 tracking-[0.4em] flex items-center gap-4">Prodotti e Listino</h4>
+                       <div className="space-y-4">
+                          {sheetData.supporti.map(s => (
+                             <div key={s.id} className="flex justify-between items-center bg-slate-50 p-6 rounded-3xl border border-slate-100 group hover:bg-white hover:border-indigo-100 transition-all">
+                                <span className="text-sm font-black text-slate-600 uppercase tracking-tighter">{s.nome}</span>
+                                <span className="text-lg font-black text-slate-900 italic">€ {s.costo.toFixed(2)}</span>
+                             </div>
+                          ))}
+                          <button onClick={() => {
+                             const nome = prompt("Nome Prodotto:");
+                             const costo = parseFloat(prompt("Costo unitario (€):"));
+                             const cat = prompt("Categoria (Abbigliamento, Felpe, Adesivi):", "Abbigliamento");
+                             if(nome && costo) setSheetData({...sheetData, supporti: [...sheetData.supporti, {id: Date.now(), categoria: cat, nome, costo}]});
+                          }} className="w-full bg-slate-900 text-white p-6 rounded-[2rem] text-[11px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-xl shadow-slate-200">+ Aggiungi Prodotto</button>
+                       </div>
+                    </div>
+                 </div>
               </div>
            </div>
         )}
